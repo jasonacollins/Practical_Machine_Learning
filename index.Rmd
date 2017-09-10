@@ -1,5 +1,5 @@
 ---
-title: "Machine Learning Peer Assignment"
+title: "Practical Machine Learning Peer Assignment"
 output: html_document
 ---
 
@@ -105,7 +105,7 @@ plot(model1$finalModel, main="Error plot")
 
 #### 3.4 Model testing
 
-We can see this through the classification accuracy on the test data set.
+We can see the high classification accuracy on the test data set.
 
 ```{r test_set, cache=TRUE}
 testPredict <- predict(model1, testing)
