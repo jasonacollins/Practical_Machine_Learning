@@ -1,0 +1,126 @@
+---
+title: "Machine Learning Peer Assignment"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+
+The purpose of this assignment is to predict how well 6 experimental participants are using a dumbbell, using data from accelerometers on the belt, forearm, arm, and dumbbell of the participants.
+
+To do this I trained a model using a random forest algorithm, with 10-fold cross-validation, and a training dataset consisting of 75% of the data. Accuracy on the test dataset was greater than 99%.
+
+## 1. Set up
+
+```{r set_up, warnings=FALSE, message=FALSE}
+library(caret)
+library(Amelia)
+```
+
+## 2. Data preparation
+
+#### 2.1 Download data
+First I downloaded the data, setting blanks to NA.
+
+```{r download, cache=TRUE}
+pml_training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", na.strings=c("", "NA"))
+pml_testing <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", na.strings=c("", "NA"))
+```
+
+An examination of the data shows there are 19622 observations of 160 variables.
+
+```{r view_data, cache=TRUE}
+dim(pml_training)
+head(pml_training)[1:10]
+```
+
+The first seven columns relate to features such as row numbers, time stamps and other information not relevant for the prediction, so I removed them. 
+
+```{r exclude_columns, cache=TRUE}
+pml_training <- pml_training[,c(8:160)]
+```
+
+#### 2.2 Examine missing data
+
+Many of the variables appear to have missing data. A missing map allows us to easily view the distribution of these missing variables.
+
+```{r view_missing, cache=TRUE}
+sum(is.na(pml_training))
+missmap(pml_training)
+```
+
+Many columns are missing most variables, whereas all other columns complete. As a result, we will restrict our analysis to those variables that are complete.
+
+```{r remove_missing, cache=TRUE}
+missingNone <- apply(pml_training, 2, function(x) sum(is.na(x))==0)
+pml_training <- pml_training[,missingNone]
+```
+
+This leaves me with `r dim(pml_training)[2]-1` predictors.
+
+## 3. Modelling
+
+#### 3.1 Cross validation and testing
+
+I created a  test dataset comprising 25% of the data to test the accuracy of the model before submitting the quiz answers.
+
+```{r partition, cache=TRUE}
+set.seed(20170909)
+inTrain <- createDataPartition(pml_training$classe, p = 0.75, list=FALSE)
+training <- pml_training[inTrain,]
+testing <- pml_training[-inTrain,]
+```
+
+#### 3.2 Model training
+
+I used 10-fold cross validation for development of the random forest model.
+
+```{r CV, cache=TRUE}
+ctrl <- trainControl(method = "cv", number = 10)
+```
+
+I implemented a random forest model on the training dataset. I selected a random forest model as this is a classification problem, and random forest is typically a robust choice that is quick to train. Although interpretation of random forests can be difficult, this is a prediction task and I am willing to sacrifice interpretability for the other strengths of the random forest.
+
+```{r model, cache=TRUE, warnings=FALSE, message=FALSE}
+model1 <- train(classe ~., method = "rf", data=training, trControl=ctrl)
+model1
+```
+
+The accuracy of the model is very high, with accuracy of `r model1$results[model1$results[,1]==model1$bestTune[[1]],2]` with `r model1$bestTune[[1]]` variables sampled. The confusion matrix of the training dataset also points to this accuracy. The estimate out-of-bag error rate is `r round(model1$finalModel$err.rate[500], 4)`
+
+```{r final_model, cache=TRUE}
+model1$finalModel
+```
+
+#### 3.3 Model error plot
+
+The error is minimised at around 100 trees.
+
+```{r plot, cache=TRUE}
+plot(model1$finalModel, main="Error plot")
+```
+
+#### 3.4 Model testing
+
+We can see this through the classification accuracy on the test data set.
+
+```{r test_set, cache=TRUE}
+testPredict <- predict(model1, testing)
+confusionMatrix(testPredict, testing$classe)
+```
+
+The accuracy on the cross-validation dataset is `r sum(testPredict==testing$classe)/dim(testing)[1]`
+
+Given this, I am confident with the quiz predictions. Predictions for the quiz are as follows.
+
+```{r quiz_predict, cache=TRUE}
+quizPredict <- predict(model1, pml_testing)
+quizPredict
+```
+
+## 4. References
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. [Qualitative Activity Recognition of Weight Lifting Exercises](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/work.jsf?p1=11201). Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
